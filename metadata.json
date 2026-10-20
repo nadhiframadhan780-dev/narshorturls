@@ -1,0 +1,6 @@
+{
+  "name": "narshort.url",
+  "description": "Pendekkan link, perluas jangkauan. Platform pemendek URL mewah, cepat, dan profesional dengan analitik mendalam, QR kustom, dan API developer.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

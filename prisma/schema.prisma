@@ -1,0 +1,208 @@
+// Prisma Schema for narshort.url
+// Supports PostgreSQL (production) with complete relational integrity & indexes.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum Plan {
+  FREE
+  PRO
+  BUSINESS
+}
+
+enum RedirectType {
+  MOVED_PERMANENTLY   // 301
+  FOUND               // 302
+  TEMPORARY_REDIRECT  // 307
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+  REJECTED
+}
+
+enum AbuseCategory {
+  PHISHING
+  MALWARE
+  SPAM
+  COPYRIGHT
+  HARASSMENT
+  OTHER
+}
+
+model User {
+  id            String    @id @default(uuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  passwordHash  String?
+  image         String?
+  role          Role      @default(USER)
+  plan          Plan      @default(FREE)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  links         Link[]
+  apiKeys       ApiKey[]
+  folders       Folder[]
+  reports       Report[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Link {
+  id              String        @id @default(uuid())
+  code            String        @unique // Base62 or custom alias
+  originalUrl     String
+  title           String?
+  notes           String?
+  redirectType    RedirectType  @default(FOUND) // 302 default for accurate analytics
+  
+  // Advanced targeting
+  iosUrl          String?
+  androidUrl      String?
+  desktopUrl      String?
+  
+  // UTM defaults
+  utmSource       String?
+  utmMedium       String?
+  utmCampaign     String?
+  utmTerm         String?
+  utmContent      String?
+  
+  // Security & Limits
+  passwordHash    String?
+  expiresAt       DateTime?
+  maxClicks       Int?
+  clickCount      Int           @default(0)
+  isActive        Boolean       @default(true)
+  isBlocked       Boolean       @default(false)
+  showPreview     Boolean       @default(false) // Anti-phishing interstitial warning
+
+  // QR Code preferences
+  qrColor         String        @default("#3730A3")
+  qrBgColor       String        @default("#FFFFFF")
+
+  // Relations
+  userId          String?
+  user            User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folderId        String?
+  folder          Folder?       @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  tags            Tag[]         @relation("LinkToTag")
+  clicks          Click[]
+  reports         Report[]
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([code])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([isActive, isBlocked])
+}
+
+model Click {
+  id          String   @id @default(uuid())
+  linkId      String
+  link        Link     @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  
+  // Request metadata (privacy respecting)
+  ipHash      String
+  userAgent   String?
+  device      String   // ios | android | desktop
+  os          String   // iOS, Android, Windows, macOS, Linux
+  browser     String   // Chrome, Safari, Firefox, Edge, etc.
+  country     String   // ID, SG, US, etc.
+  city        String?
+  referrer    String?  // Google, Instagram, WhatsApp, Direct, etc.
+  isUnique    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+
+  @@index([linkId])
+  @@index([createdAt])
+  @@index([device])
+  @@index([country])
+  @@index([referrer])
+}
+
+model Folder {
+  id        String   @id @default(uuid())
+  name      String
+  color     String?  @default("#3730A3")
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  links     Link[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model Tag {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  color     String?  @default("#C9A24B")
+  links     Link[]   @relation("LinkToTag")
+  createdAt DateTime @default(now())
+
+  @@index([name])
+}
+
+model ApiKey {
+  id          String    @id @default(uuid())
+  name        String
+  keyHash     String    @unique
+  prefix      String    // e.g. "nar_live_..."
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  @@index([keyHash])
+  @@index([userId])
+}
+
+model Report {
+  id          String        @id @default(uuid())
+  linkId      String
+  link        Link          @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  reporterIp  String
+  category    AbuseCategory @default(PHISHING)
+  details     String
+  status      ReportStatus  @default(PENDING)
+  userId      String?
+  user        User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([linkId])
+  @@index([status])
+}
+
+model BlockedDomain {
+  id        String   @id @default(uuid())
+  domain    String   @unique
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([domain])
+}
