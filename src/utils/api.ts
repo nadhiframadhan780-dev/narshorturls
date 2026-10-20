@@ -2,6 +2,25 @@ import { LinkItem, FolderItem, ApiKeyItem, AbuseReportItem, BlockedDomainItem, L
 
 const API_BASE = '/api';
 
+async function parseJsonResponse(res: Response): Promise<any> {
+  const text = await res.text();
+  try {
+    const json = JSON.parse(text);
+    if (!res.ok) {
+      throw new Error(json.error || json.message || `Server error (${res.status})`);
+    }
+    return json;
+  } catch (err: any) {
+    if (err.message && !err.message.includes('JSON')) {
+      throw err;
+    }
+    if (!res.ok) {
+      throw new Error(`Server returned error (${res.status}): ${text.substring(0, 120)}`);
+    }
+    throw new Error(`Format respon tidak valid: ${text.substring(0, 120)}`);
+  }
+}
+
 export async function fetchLinks(params?: {
   search?: string;
   tag?: string;
@@ -17,8 +36,7 @@ export async function fetchLinks(params?: {
   if (params?.userId) query.set('userId', params.userId);
 
   const res = await fetch(`${API_BASE}/links?${query.toString()}`);
-  if (!res.ok) throw new Error('Gagal memuat daftar link');
-  return res.json();
+  return parseJsonResponse(res);
 }
 
 export async function createLink(data: any): Promise<{ success: boolean; link: LinkItem; shortUrl: string; displayUrl: string }> {
@@ -27,9 +45,7 @@ export async function createLink(data: any): Promise<{ success: boolean; link: L
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error || 'Gagal memendekkan link');
-  return json;
+  return parseJsonResponse(res);
 }
 
 export async function bulkCreateLinks(data: {
@@ -42,9 +58,7 @@ export async function bulkCreateLinks(data: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error || 'Gagal memproses bulk link');
-  return json;
+  return parseJsonResponse(res);
 }
 
 export async function updateLink(id: string, updates: Partial<LinkItem>): Promise<{ success: boolean; link: LinkItem }> {
@@ -53,9 +67,7 @@ export async function updateLink(id: string, updates: Partial<LinkItem>): Promis
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updates),
   });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error || 'Gagal memperbarui link');
-  return json;
+  return parseJsonResponse(res);
 }
 
 export async function deleteLink(id: string): Promise<boolean> {
@@ -65,14 +77,12 @@ export async function deleteLink(id: string): Promise<boolean> {
 
 export async function fetchLinkAnalytics(id: string): Promise<LinkAnalyticsData> {
   const res = await fetch(`${API_BASE}/links/${id}/analytics`);
-  if (!res.ok) throw new Error('Gagal mengambil data analitik link');
-  return res.json();
+  return parseJsonResponse(res);
 }
 
 export async function fetchGlobalAnalytics(): Promise<any> {
   const res = await fetch(`${API_BASE}/analytics/global`);
-  if (!res.ok) throw new Error('Gagal mengambil data analitik platform');
-  return res.json();
+  return parseJsonResponse(res);
 }
 
 export async function checkAliasAvailability(alias: string): Promise<{ available: boolean; message: string }> {
@@ -81,7 +91,7 @@ export async function checkAliasAvailability(alias: string): Promise<{ available
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ alias }),
   });
-  return res.json();
+  return parseJsonResponse(res);
 }
 
 export async function verifyLinkPassword(code: string, password: string): Promise<{ success: boolean; redirectUrl?: string; error?: string }> {
@@ -90,7 +100,7 @@ export async function verifyLinkPassword(code: string, password: string): Promis
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password }),
   });
-  return res.json();
+  return parseJsonResponse(res);
 }
 
 export async function submitAbuseReport(data: {
@@ -103,15 +113,13 @@ export async function submitAbuseReport(data: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error || 'Gagal mengirim laporan');
-  return json;
+  return parseJsonResponse(res);
 }
 
 // Folders
 export async function fetchFolders(userId?: string): Promise<FolderItem[]> {
   const res = await fetch(`${API_BASE}/folders${userId ? `?userId=${userId}` : ''}`);
-  const json = await res.json();
+  const json = await parseJsonResponse(res);
   return json.folders || [];
 }
 
@@ -121,14 +129,14 @@ export async function createFolder(name: string, color?: string, userId?: string
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, color, userId }),
   });
-  const json = await res.json();
+  const json = await parseJsonResponse(res);
   return json.folder;
 }
 
 // API Keys
 export async function fetchApiKeys(userId?: string): Promise<ApiKeyItem[]> {
   const res = await fetch(`${API_BASE}/v1/api-keys${userId ? `?userId=${userId}` : ''}`);
-  const json = await res.json();
+  const json = await parseJsonResponse(res);
   return json.apiKeys || [];
 }
 
@@ -138,7 +146,7 @@ export async function createApiKey(name: string, userId?: string): Promise<ApiKe
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, userId }),
   });
-  const json = await res.json();
+  const json = await parseJsonResponse(res);
   return json.apiKey;
 }
 
@@ -150,18 +158,18 @@ export async function deleteApiKey(id: string): Promise<boolean> {
 // Admin
 export async function fetchAdminStats(): Promise<any> {
   const res = await fetch(`${API_BASE}/admin/stats`);
-  return res.json();
+  return parseJsonResponse(res);
 }
 
 export async function toggleBlockLink(id: string): Promise<LinkItem> {
   const res = await fetch(`${API_BASE}/admin/links/${id}/toggle-block`, { method: 'POST' });
-  const json = await res.json();
+  const json = await parseJsonResponse(res);
   return json.link;
 }
 
 export async function fetchAdminReports(): Promise<AbuseReportItem[]> {
   const res = await fetch(`${API_BASE}/admin/reports`);
-  const json = await res.json();
+  const json = await parseJsonResponse(res);
   return json.reports || [];
 }
 
@@ -171,12 +179,12 @@ export async function updateReportStatus(id: string, status: string): Promise<an
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status }),
   });
-  return res.json();
+  return parseJsonResponse(res);
 }
 
 export async function fetchBlockedDomains(): Promise<BlockedDomainItem[]> {
   const res = await fetch(`${API_BASE}/admin/blocked-domains`);
-  const json = await res.json();
+  const json = await parseJsonResponse(res);
   return json.blockedDomains || [];
 }
 
@@ -186,7 +194,7 @@ export async function addBlockedDomain(domain: string, reason: string): Promise<
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ domain, reason }),
   });
-  return res.json();
+  return parseJsonResponse(res);
 }
 
 export async function removeBlockedDomain(id: string): Promise<boolean> {
